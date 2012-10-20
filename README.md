@@ -15,6 +15,7 @@ or by including it in your main:
 
 
 Then you just register your SQLAlchemy session and declarative base:
+
     from sqlalchemy_traversal.interfaces import ISASession
     from sqlalchemy_traversal.interfaces import ISABase
 
