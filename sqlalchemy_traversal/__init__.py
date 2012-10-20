@@ -254,3 +254,4 @@ class TraversalMixin(JsonSerializableMixin):
 
 def includeme(config):
     config.scan('sqlalchemy_traversal')
+    config.include('sqlalchemy_traversal.routes')
