@@ -167,7 +167,7 @@ class ModelCollection(TraversalBase):
         """
         if isinstance(key, (str, unicode)):
             for obj in self.collection:
-                data = getattr(obj, obj.lookup_key)
+                data = getattr(obj, obj._traversal_lookup_key)
 
                 if isinstance(data, int):
                     compare_value = int(key)

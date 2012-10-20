@@ -19,7 +19,7 @@ class SQLAlchemyRoot(object):
     def __getitem__(self, k):
 
         try:
-            key = getattr(self.cls, self.cls.lookup_key)
+            key = getattr(self.cls, self.cls._traversal_lookup_key)
 
             result =  self.session.query(self.cls).filter(key == k)
             result = result.one()

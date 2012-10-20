@@ -1,5 +1,6 @@
 from pyramid.view                       import view_config
 from sqlalchemy_traversal               import get_session
+from sqlalchemy_traversal               import TraversalMixin
 from sqlalchemy_traversal.resources     import SQLAlchemyRoot
 from sqlalchemy_traversal.interfaces    import ISaver
 
@@ -29,8 +30,9 @@ def resources_view(request):
 
         result = saver(request)
 
-        if 'has_errors' in result:
-            request.response_status = '400 Bad Request'
+        if not isinstance(result, TraversalMixin):
+            if 'has_errors' in result:
+                request.response_status = '400 Bad Request'
 
         return result
     elif request.method == 'DELETE':
