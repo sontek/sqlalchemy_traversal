@@ -12,9 +12,19 @@ var
 sdist
 develop-eggs
 .installed.cfg
+.*.sw*
+# *.swp
+# *.swo
+# *.swn
+# *.swm
+# *.swl
+# *.swk
 
 # Installer logs
 pip-log.txt
+
+# Gimp files
+*.xcf
 
 # Unit test / coverage reports
 .coverage
@@ -25,3 +35,19 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
+
+# Generated files
+.sass-cache
+# generated.css
+static/css/*
+generated.js
+generated/
+
+__pycache__
+.DS_Store
+
+dump.rdb
+
+tmp/
+*#
+*~
