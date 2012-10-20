@@ -27,7 +27,7 @@ requires = [
 
 setup(
     name = name
-    , version='0.0'
+    , version='0.1'
     , url='http://github.com/eventray/' + name
     , author='John Anderson'
     , author_email='sontek@gmail.com'
