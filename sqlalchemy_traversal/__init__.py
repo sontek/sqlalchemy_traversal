@@ -180,7 +180,7 @@ class ModelCollection(TraversalBase):
                     obj.__parent__ = self.__parent__
                     return obj
 
-                raise KeyError
+            raise KeyError
         else:
             return self.collection[key]
 
