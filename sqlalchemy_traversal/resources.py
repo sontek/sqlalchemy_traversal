@@ -6,6 +6,11 @@ from sqlalchemy.orm.exc   import NoResultFound
 
 
 class SQLAlchemyRoot(object):
+    """
+    This is a resource factory that wraps a SQL Alchemy class and will set a
+    _request attribute on the instance during traversal so that the instance
+    may check items on the request such as the method or query string
+    """
     def __init__(self, request, cls):
         self.request = request
         self.session = get_session(self.request)
