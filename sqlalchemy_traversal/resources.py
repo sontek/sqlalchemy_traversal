@@ -48,7 +48,7 @@ class TraversalRoot(object):
     def __init__(self, request):
         self.request = request
         self.base = get_base(request)
-        self.base = get_session(request)
+        self.session = get_session(request)
         self.tables = {}
 
         # Loop through all the tables in the SQLAlchemy registry
@@ -71,7 +71,7 @@ class TraversalRoot(object):
         root a SQLAlchemyFactory that will keep track of which node we are 
         currently at.
         """
-        cls = self.get(key)
+        cls = self.tables[key]
 
         to_return = None
 

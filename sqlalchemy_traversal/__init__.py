@@ -13,12 +13,12 @@ def get_session(request):
     registry
     """
 
-    session = request.registry.getUtility(ISASession)
-
-    if not session:
+    if request.registry.queryUtility(ISASession):
+        session = request.registry.getUtility(ISASession)
+    else:
         raise Exception(
             "You must register ISASession with your SQLAlchemy "
-            , "session in the pyramid registry"
+            + "session in the pyramid registry"
         )
 
     return session
@@ -29,18 +29,18 @@ def get_base(request):
     pyramid registry
     """
 
-    base = request.registry.getUtility(ISABase)
-
-    if not base:
+    if request.registry.queryUtility(ISABase):
+        base = request.registry.getUtility(ISABase)
+    else:
         raise Exception(
             "You must register ISABase with your SQLAlchemy "
-            , "base in the pyramid registry"
+            + "base in the pyramid registry"
         )
 
     return base
 
 class TraversalBase(object):
-    def __try_to_json(self, request, attr):
+    def try_to_json(self, request, attr):
         """
         Try to run __json__ on the given object.
         Raise TypeError is __json__ is missing
@@ -74,6 +74,11 @@ class JsonSerializableMixin(TraversalBase):
     _json_blacklist :
         blacklist list of which properties not to include in JSON
     """
+
+    _base_blacklist = ['password', '_json_eager_load', '_request',
+        '_base_blacklist', '_json_blacklist'
+    ]
+
 
     def __json__(self, request):
         """
@@ -130,10 +135,10 @@ class JsonSerializableMixin(TraversalBase):
             # indicate with one-to-many relationships
             if key in json_eager_load and attr:
                 if hasattr(attr, '_sa_instance_state'):
-                    props[key] = self.__try_to_json(request, attr)
+                    props[key] = self.try_to_json(request, attr)
                 else:
                     # jsonify all child objects
-                    props[key] = [self.__try_to_json(request, x) for x in attr]
+                    props[key] = [self.try_to_json(request, x) for x in attr]
                 continue
 
             # convert all non integer strings to string or if string conversion
@@ -174,6 +179,8 @@ class ModelCollection(TraversalBase):
                 if data == compare_value:
                     obj.__parent__ = self.__parent__
                     return obj
+
+                raise KeyError
         else:
             return self.collection[key]
 
@@ -181,7 +188,7 @@ class ModelCollection(TraversalBase):
         return (x for x in self.collection)
 
     def __json__(self, request):
-        return [self.__try_to_json(request, x) for x in self.collection]
+        return [self.try_to_json(request, x) for x in self.collection]
 
 
 class TraversalMixin(JsonSerializableMixin):
@@ -231,13 +238,19 @@ class TraversalMixin(JsonSerializableMixin):
         # if we are returning a collection or a single instance
         if obj != None:
             try:
-                # is this is a collection
-                iter(obj)
-                col = ModelCollection(obj)
-                col.__parent__ = self
-                return col
+                if not isinstance(obj, (str, unicode)):
+                    # is this is a collection
+                    iter(obj)
+                    col = ModelCollection(obj)
+                    col.__parent__ = self
+                    return col
             except TypeError as e:
-                return obj
+                pass
+
+            return obj
 
         # throws a 404
         raise KeyError
+
+def includeme(config):
+    config.scan('sqlalchemy_traversal')
