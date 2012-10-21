@@ -1,11 +1,38 @@
 from sqlalchemy_traversal.interfaces    import ISABase
 from sqlalchemy_traversal.interfaces    import ISASession
+from sqlalchemy_traversal.interfaces    import ISaver
 
 from datetime                           import datetime
 from datetime                           import date
 from datetime                           import time
 
 from sqlalchemy.orm                     import class_mapper
+
+import colander
+import venusian
+
+def format_colander_errors(e):
+    """
+    This formats our colander errors in a nice format
+    for rendering errors
+    """
+    values = []
+
+    for child in e.children:
+        msg = child.msg
+
+        if msg == None:
+            msg = e.asdict()
+
+        error = {
+            'name': child.node.title
+            , 'id': child.node.name
+            , 'error': msg
+        }
+
+        values.append(error)
+
+    return values
 
 def get_session(request):
     """
@@ -252,6 +279,58 @@ class TraversalMixin(JsonSerializableMixin):
 
         # throws a 404
         raise KeyError
+
+class register_save(object):
+    """
+    This is a decorator that matches a Model class with a colander Schema
+
+    If an API is called with a POST or PUT it will first try to run validation
+    against the schema before doing anything
+    """
+    def __init__(self, cls, schema):
+        self.cls = cls
+        self.schema = schema
+
+    def register(self, scanner, name, wrapped):
+        def save(request):
+            session = get_session(request)
+
+            if request.is_xhr:
+                post_items = request.json.items()
+            else:
+                post_items = request.POST.items()
+
+            schema = self.schema()
+            schema = schema.bind(request=request)
+
+            try:
+                data = schema.deserialize(post_items)
+            except colander.Invalid as e:
+                error_dict = {
+                    'has_errors': True,
+                    'errors': format_colander_errors(e)
+                }
+
+                return dict(error_dict.items() + post_items)
+
+            # cleaned dictionary data from the save function
+            result = wrapped(request, data)
+
+            for key, value in result.iteritems():
+                setattr(request.context, key, value)
+
+            session.add(request.context)
+            session.flush()
+
+            return request.context
+
+        registry = scanner.config.registry
+        registry.registerAdapter(save, (self.cls, ), ISaver)
+
+    def __call__(self, wrapped):
+        venusian.attach(wrapped, self.register)
+
+        return wrapped
 
 def includeme(config):
     config.scan('sqlalchemy_traversal')

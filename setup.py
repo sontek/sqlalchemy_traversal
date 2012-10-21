@@ -23,6 +23,8 @@ requires = [
     , 'pyramid'
     , 'SQLAlchemy'
     , 'zope.interface'
+    , 'colander'
+    , 'venusian'
 ]
 
 setup(
