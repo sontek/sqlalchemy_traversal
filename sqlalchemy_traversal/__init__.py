@@ -205,6 +205,9 @@ class ModelCollection(TraversalBase):
                 # are looking for?
                 if data == compare_value:
                     obj.__parent__ = self.__parent__
+                    if hasattr(self, '_request'):
+                        obj._request = self._request
+
                     return obj
 
             raise KeyError
@@ -224,6 +227,22 @@ class TraversalMixin(JsonSerializableMixin):
     """
     _traversal_lookup_key = 'id'
 
+    def _recurse_get_traversal_root(self, obj):
+        if hasattr(obj, 'get_class'):
+            return obj
+        else:
+            return self._recurse_get_traversal_root(obj.__parent__)
+
+    def _get_class(self, name):
+        """
+        This is a recursive function that will search every parent
+        until we get to the TraversalRoot so that we can get the
+        class name
+        """
+        root = self._recurse_get_traversal_root(self)
+
+        return root.get_class(name)
+
     def __getitem__(self, attribute):
         """
         This is where the traversal magic happens for a specific model,
@@ -238,28 +257,21 @@ class TraversalMixin(JsonSerializableMixin):
         if hasattr(self, '_request'):
             #TODO: Lets make this less of a hack
             # POST means "create", so we are always looking for a class
-            if self._request.method == 'POST':
+            if self._request.method == 'POST' and \
+                    self._request.path.endswith(attribute):
                 # get an sa mapper class to look up properties on
                 # we need to find out which class the attribute is
                 # attached to and return that
                 mapper = class_mapper(self.__class__, compile=False)
                 rel_prop = mapper.get_property(attribute)
                 name = rel_prop.target.name
-                cls = self.__parent__.get_class(name)()
+                cls = self._get_class(name)()
                 cls.__parent__ = self
+                cls._request = self._request
 
                 return cls
 
-        try:
-            obj = getattr(self, attribute)
-        except AttributeError as e:
-            #TODO: do we need to do anything here?
-            # the object doesn't have the attribte, maybe we want a class?
-            # return from the parent
-            #cls = self.__parent__.get(k)()
-            #cls.__parent__ = self
-            #return cls
-            pass
+        obj = getattr(self, attribute)
 
         # The model had the specific attribute, so we just need to figure out
         # if we are returning a collection or a single instance
@@ -271,6 +283,10 @@ class TraversalMixin(JsonSerializableMixin):
                     iter(obj)
                     col = ModelCollection(obj)
                     col.__parent__ = self
+
+                    if hasattr(self, '_request'):
+                        col._request = self._request
+
                     return col
             except TypeError as e:
                 pass

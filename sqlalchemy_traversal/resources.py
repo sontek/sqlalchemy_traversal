@@ -16,12 +16,6 @@ class SQLAlchemyRoot(object):
         self.session = get_session(self.request)
         self.cls = cls
 
-    def get_class(self, key):
-        """ 
-        This gets the class from the parent TraversalRoot
-        """
-        return self.__parent__.get_class(key)
-
     def __getitem__(self, k):
 
         try:
