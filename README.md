@@ -3,6 +3,8 @@ sqlalchemy_traversal
 
 This is a pyramid extension that allows you to use traversal with SQLAlchemy objects
 
+Demo App here: https://github.com/eventray/sqlalchemy_traversal_demo
+
 To use this you just have to include sqlalchemy_traversal in your pyramid application
 by either putting it in your development.ini:
 
