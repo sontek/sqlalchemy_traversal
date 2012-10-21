@@ -218,7 +218,7 @@ class TraversalMixin(JsonSerializableMixin):
                 mapper = class_mapper(self.__class__, compile=False)
                 rel_prop = mapper.get_property(attribute)
                 name = rel_prop.target.name
-                cls = self.__parent__.get(name)()
+                cls = self.__parent__.__parent__.get(name)()
                 cls.__parent__ = self
 
                 return cls

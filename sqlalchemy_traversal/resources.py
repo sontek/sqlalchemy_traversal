@@ -63,6 +63,9 @@ class TraversalRoot(object):
                 table.__parent__ = self
                 self.tables[table.__tablename__] = table
 
+    def get(self, key):
+        return self.tables[key]
+
     def __getitem__(self, key):
         """
         This is used in traversal to get the correct item. If the path ends
