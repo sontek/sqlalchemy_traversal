@@ -34,3 +34,9 @@ be traversed:
 
 
 Now you will be able to hit the URL /traverse/user  to get all the users in your database
+
+
+You can also tell it to load relationships via the _json_eager_load property:
+
+    class User(TraversalMixin, Base):
+        _json_eager_load = ['permissions']

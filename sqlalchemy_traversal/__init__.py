@@ -238,7 +238,8 @@ class TraversalMixin(JsonSerializableMixin):
         # if we are returning a collection or a single instance
         if obj != None:
             try:
-                if not isinstance(obj, (str, unicode)):
+                ignore_types = (str, unicode, int, float,TraversalMixin)
+                if not isinstance(obj, ignore_types):
                     # is this is a collection
                     iter(obj)
                     col = ModelCollection(obj)
