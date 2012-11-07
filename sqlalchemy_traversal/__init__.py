@@ -11,7 +11,7 @@ from sqlalchemy.orm                     import class_mapper
 import colander
 import venusian
 
-def filter_query_by_qs(session, cls, qs):
+def filter_query_by_qs(session, cls, qs, existing_query=None):
     """ This function takes a SA Session, a SA ORM class, and a 
     query string that it can filter with.
 
@@ -23,7 +23,11 @@ def filter_query_by_qs(session, cls, qs):
 
         /conference?pk.in=1,2
     """
-    query = session.query(cls)
+    if existing_query:
+        query = existing_query
+    else:
+        query = session.query(cls)
+
     method = 'asc'
 
     order_by = None

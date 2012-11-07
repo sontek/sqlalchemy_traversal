@@ -4,8 +4,10 @@ from sqlalchemy_traversal import TraversalMixin
 from sqlalchemy_traversal import ModelCollection
 from sqlalchemy_traversal import filter_query_by_qs
 from sqlalchemy_traversal import get_prop_from_cls
+from sqlalchemy.orm       import contains_eager
 from sqlalchemy.orm.exc   import NoResultFound
 from sqlalchemy.exc       import ProgrammingError
+from sqlalchemy.exc       import DataError
 
 class QueryGetItem(object):
     """
@@ -24,13 +26,21 @@ class QueryGetItem(object):
         cls = get_prop_from_cls(self.cls, item)
 
         if self.request.path.endswith(item):
-            query = filter_query_by_qs(self.session, cls,
-                    self.request.GET
+            self.query = self.query.join(item)
+            self.query = self.query.options(contains_eager(item))
+
+            self.query = filter_query_by_qs(
+                self.session,
+                cls,
+                self.request.GET,
+                existing_query = self.query
             )
 
             try:
+                parent = self.query.one()
+
                 to_return = ModelCollection(
-                    [x for x in query.all()]
+                    [x for x in getattr(parent, item)]
                 )
             except ProgrammingError:
                 raise KeyError
@@ -69,10 +79,9 @@ class SQLAlchemyRoot(object):
             if self.request.path.split('/')[-2] == self.table_lookup:
                 try:
                     result = result.one()
-                except ProgrammingError:
+                except (ProgrammingError, DataError):
                     raise KeyError
             else:
-
                 getitem = QueryGetItem(self.cls, result,
                     self.request, result.__getitem__
                 )
