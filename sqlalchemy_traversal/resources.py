@@ -78,6 +78,11 @@ class SQLAlchemyRoot(object):
             # if its not, lets return the query itself
             if self.request.path.split('/')[-2] == self.table_lookup:
                 try:
+                    result = filter_query_by_qs(self.session, self.cls,
+                            self.request.GET
+                            , existing_query = result
+                    )
+
                     result = result.one()
                 except (ProgrammingError, DataError):
                     raise KeyError

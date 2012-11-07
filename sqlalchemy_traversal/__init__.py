@@ -7,6 +7,7 @@ from datetime                           import date
 from datetime                           import time
 
 from sqlalchemy.orm                     import class_mapper
+from sqlalchemy.exc                     import InvalidRequestError
 
 import colander
 import venusian
@@ -284,13 +285,16 @@ def get_prop_from_cls(cls, attr):
     we need to find out which class the attribute is
     attached to and return that
     """
-    mapper = class_mapper(cls, compile=False)
-    rel_prop = mapper.get_property(attr)
-    name = rel_prop.target.name
-    root = recurse_get_traversal_root(cls)
-    new_cls = root.get_class(name)
+    try:
+        mapper = class_mapper(cls, compile=False)
+        rel_prop = mapper.get_property(attr)
+        name = rel_prop.target.name
+        root = recurse_get_traversal_root(cls)
+        new_cls = root.get_class(name)
 
-    return new_cls
+        return new_cls
+    except InvalidRequestError:
+        raise KeyError
 
 class TraversalMixin(JsonSerializableMixin):
     """
