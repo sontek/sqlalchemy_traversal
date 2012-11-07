@@ -11,6 +11,53 @@ from sqlalchemy.orm                     import class_mapper
 import colander
 import venusian
 
+def filter_query_by_qs(session, cls, qs):
+    """ This function takes a SA Session, a SA ORM class, and a 
+    query string that it can filter with.
+
+    Accepted QS arguments are: __order_by and property names, for example:
+
+        /conference?__order_by=sort_order&name=Foo Con
+
+    You can also do an in query:
+
+        /conference?pk.in=1,2
+    """
+    query = session.query(cls)
+    method = 'asc'
+
+    order_by = None
+
+    if '__order_by' in qs:
+        order_by = qs.pop('__order_by')
+
+    if order_by:
+        orders = [x.strip() for x in order_by.split(',')]
+
+        for order in orders:
+            if ' ' in order:
+                order, method = order.split()
+
+            prop = getattr(cls, order)
+
+            if method == 'desc':
+                query = query.order_by(prop.desc())
+            else:
+                query = query.order_by(prop.asc())
+
+    for key, value in qs.iteritems():
+        if '.in' in key:
+            key = key[0:-3]
+            prop = getattr(cls, key)
+            query = query.filter(prop.in_(value.split(',')))
+        else:
+            prop = getattr(cls, key)
+            query = query.filter(prop==value)
+
+    return query
+
+
+
 def format_colander_errors(e):
     """
     This formats our colander errors in a nice format
@@ -150,6 +197,7 @@ class JsonSerializableMixin(TraversalBase):
 
             # format and date/datetime/time properties to isoformat
             obj = getattr(self, key)
+
             if isinstance(obj, (datetime, date, time)):
                 props[key] = obj.isoformat()
                 continue
@@ -220,6 +268,25 @@ class ModelCollection(TraversalBase):
     def __json__(self, request):
         return [self.try_to_json(request, x) for x in self.collection]
 
+def recurse_get_traversal_root(obj):
+    if hasattr(obj, 'get_class'):
+        return obj
+    else:
+        return recurse_get_traversal_root(obj.__parent__)
+
+def get_prop_from_cls(cls, attr):
+    """
+    Gets an sa mapper class to look up properties on
+    we need to find out which class the attribute is
+    attached to and return that
+    """
+    mapper = class_mapper(cls, compile=False)
+    rel_prop = mapper.get_property(attr)
+    name = rel_prop.target.name
+    root = recurse_get_traversal_root(cls)
+    new_cls = root.get_class(name)
+
+    return new_cls
 
 class TraversalMixin(JsonSerializableMixin):
     """
@@ -227,19 +294,13 @@ class TraversalMixin(JsonSerializableMixin):
     """
     _traversal_lookup_key = 'id'
 
-    def _recurse_get_traversal_root(self, obj):
-        if hasattr(obj, 'get_class'):
-            return obj
-        else:
-            return self._recurse_get_traversal_root(obj.__parent__)
-
     def _get_class(self, name):
         """
         This is a recursive function that will search every parent
         until we get to the TraversalRoot so that we can get the
         class name
         """
-        root = self._recurse_get_traversal_root(self)
+        root = recurse_get_traversal_root(self)
 
         return root.get_class(name)
 
@@ -259,13 +320,11 @@ class TraversalMixin(JsonSerializableMixin):
             # POST means "create", so we are always looking for a class
             if self._request.method == 'POST' and \
                     self._request.path.endswith(attribute):
-                # get an sa mapper class to look up properties on
-                # we need to find out which class the attribute is
-                # attached to and return that
-                mapper = class_mapper(self.__class__, compile=False)
-                rel_prop = mapper.get_property(attribute)
-                name = rel_prop.target.name
-                cls = self._get_class(name)()
+
+                cls = get_prop_from_cls(self.__class__, attribute,
+                        self._get_class
+                )
+
                 cls.__parent__ = self
                 cls._request = self._request
 
@@ -276,16 +335,24 @@ class TraversalMixin(JsonSerializableMixin):
         # The model had the specific attribute, so we just need to figure out
         # if we are returning a collection or a single instance
         if obj != None:
+            request = None
+            if hasattr(self, '_request'):
+                request = self._request
+
+            if request:
+                session = get_session(request)
+                filter_query_by_qs(session, obj, self._request.GET)
+
             try:
-                ignore_types = (str, unicode, int, float,TraversalMixin)
+                ignore_types = (str, unicode, int, float, TraversalMixin)
                 if not isinstance(obj, ignore_types):
                     # is this is a collection
                     iter(obj)
                     col = ModelCollection(obj)
                     col.__parent__ = self
 
-                    if hasattr(self, '_request'):
-                        col._request = self._request
+                    if request:
+                        col._request = request
 
                     return col
             except TypeError as e:

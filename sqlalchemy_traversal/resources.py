@@ -2,8 +2,45 @@ from sqlalchemy_traversal import get_session
 from sqlalchemy_traversal import get_base
 from sqlalchemy_traversal import TraversalMixin
 from sqlalchemy_traversal import ModelCollection
+from sqlalchemy_traversal import filter_query_by_qs
+from sqlalchemy_traversal import get_prop_from_cls
 from sqlalchemy.orm.exc   import NoResultFound
+from sqlalchemy.exc       import ProgrammingError
 
+class QueryGetItem(object):
+    """
+    This is used so that if we haven't ended our traversal we can pass
+    unexecuted queries around to limit the amount of queries we actually
+    run during traversal
+    """
+    def __init__(self, cls, query, request, old_gi):
+        self.cls = cls
+        self.query = query
+        self.request = request
+        self.session = get_session(self.request)
+        self.old_gi = old_gi
+
+    def __call__(self, item):
+        cls = get_prop_from_cls(self.cls, item)
+
+        if self.request.path.endswith(item):
+            query = filter_query_by_qs(self.session, cls,
+                    self.request.GET
+            )
+
+            try:
+                to_return = ModelCollection(
+                    [x for x in query.all()]
+                )
+            except ProgrammingError:
+                raise KeyError
+
+            return to_return
+
+        new_sa_root = SQLAlchemyRoot(self.request, cls, table_lookup=item)
+        new_sa_root.__parent__ = self.__parent__
+
+        return new_sa_root
 
 class SQLAlchemyRoot(object):
     """
@@ -11,24 +48,45 @@ class SQLAlchemyRoot(object):
     _request attribute on the instance during traversal so that the instance
     may check items on the request such as the method or query string
     """
-    def __init__(self, request, cls):
+    def __init__(self, request, cls, table_lookup=None):
         self.request = request
         self.session = get_session(self.request)
         self.cls = cls
 
-    def __getitem__(self, k):
+        if table_lookup == None:
+            self.table_lookup = self.cls.__tablename__
+        else:
+            self.table_lookup = table_lookup
 
+    def __getitem__(self, k):
         try:
             key = getattr(self.cls, self.cls._traversal_lookup_key)
 
             result =  self.session.query(self.cls).filter(key == k)
-            result = result.one()
+
+            # This is the final object we want, so lets return the result
+            # if its not, lets return the query itself
+            if self.request.path.split('/')[-2] == self.table_lookup:
+                try:
+                    result = result.one()
+                except ProgrammingError:
+                    raise KeyError
+            else:
+
+                getitem = QueryGetItem(self.cls, result,
+                    self.request, result.__getitem__
+                )
+
+                getitem.__parent__ = self
+
+                result.__getitem__ =  getitem
 
             # we need give the SQLAlchemy model an instance of the request
             # so that it can check if we are in a PUT or POST
             result._request = self.request
 
             result.__parent__ = self
+
             return result
         except NoResultFound as e:
             raise KeyError
@@ -96,9 +154,17 @@ class TraversalRoot(object):
         # a new instance or querying the table
         if self.request.path.endswith(key):
             if self.request.method == 'GET':
-                to_return = ModelCollection(
-                    [x for x in self.session.query(cls).all()]
+                query = filter_query_by_qs(self.session, cls,
+                        self.request.GET
                 )
+
+                try:
+                    to_return = ModelCollection(
+                        [x for x in query.all()]
+                    )
+                except ProgrammingError:
+                    raise KeyError
+
             elif self.request.method == 'POST' or self.request.method == 'PUT':
                 to_return = cls()
 
