@@ -26,7 +26,7 @@ class QueryGetItem(object):
         cls = get_prop_from_cls(self.cls, item)
 
         if self.request.path.endswith(item):
-            self.query = self.query.join(item)
+            self.query = self.query.outerjoin(item)
             self.query = self.query.options(contains_eager(item))
 
             self.query = filter_query_by_qs(
@@ -37,6 +37,9 @@ class QueryGetItem(object):
             )
 
             try:
+                if self.request.method == 'POST':
+                    return cls()
+
                 parent = self.query.one()
 
                 to_return = ModelCollection(
@@ -77,6 +80,7 @@ class SQLAlchemyRoot(object):
             # This is the final object we want, so lets return the result
             # if its not, lets return the query itself
             if self.request.path.split('/')[-2] == self.table_lookup:
+
                 try:
                     result = filter_query_by_qs(self.session, self.cls,
                             self.request.GET
