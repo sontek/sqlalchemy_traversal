@@ -4,7 +4,7 @@ from sqlalchemy_traversal               import TraversalMixin
 from sqlalchemy_traversal.resources     import SQLAlchemyRoot
 from sqlalchemy_traversal.interfaces    import ISaver
 
-from zope.interface             import providedBy
+from zope.interface                     import providedBy
 
 @view_config(
     route_name='traversal_resources',

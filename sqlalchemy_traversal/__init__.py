@@ -1,6 +1,7 @@
 from sqlalchemy_traversal.interfaces    import ISABase
 from sqlalchemy_traversal.interfaces    import ISASession
 from sqlalchemy_traversal.interfaces    import ISaver
+from sqlalchemy_traversal.interfaces    import IAfterSaver
 
 from datetime                           import datetime
 from datetime                           import date
@@ -8,6 +9,7 @@ from datetime                           import time
 
 from sqlalchemy.orm                     import class_mapper
 from sqlalchemy.exc                     import InvalidRequestError
+from zope.interface                     import providedBy
 
 import colander
 import venusian
@@ -413,10 +415,37 @@ class register_save(object):
             session.add(request.context)
             session.flush()
 
+            after_save = request.registry.adapters.lookup(
+                [providedBy(request.context)], IAfterSaver
+            )
+
+            if after_save:
+                after_save(request)
+
             return request.context
 
         registry = scanner.config.registry
         registry.registerAdapter(save, (self.cls, ), ISaver)
+
+    def __call__(self, wrapped):
+        venusian.attach(wrapped, self.register)
+
+        return wrapped
+
+class register_after_save(object):
+    """
+    This is a decorator that matches a Model class and will execute after
+    the save has flushed
+    """
+    def __init__(self, cls):
+        self.cls = cls
+
+    def register(self, scanner, name, wrapped):
+        def after_save(request):
+            wrapped(request)
+
+        registry = scanner.config.registry
+        registry.registerAdapter(after_save, (self.cls, ), IAfterSaver)
 
     def __call__(self, wrapped):
         venusian.attach(wrapped, self.register)
