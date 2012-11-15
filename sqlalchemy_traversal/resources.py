@@ -24,7 +24,6 @@ class QueryGetItem(object):
 
     def __call__(self, item):
         cls = get_prop_from_cls(self.cls, item)
-
         if self.request.path.endswith(item):
             self.query = self.query.outerjoin(item)
             self.query = self.query.options(contains_eager(item))
@@ -107,6 +106,10 @@ class SQLAlchemyRoot(object):
 
             return result
         except NoResultFound as e:
+            # POSTing to the URL with ID already set?
+            if self.request.method == 'POST' and self.cls != None:
+                return self.cls()
+
             raise KeyError
 
 class TraversalRoot(object):
