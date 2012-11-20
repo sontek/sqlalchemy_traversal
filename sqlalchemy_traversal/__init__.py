@@ -9,6 +9,7 @@ from datetime                           import time
 
 from sqlalchemy.orm                     import class_mapper
 from sqlalchemy.exc                     import InvalidRequestError
+from sqlalchemy                         import not_
 from zope.interface                     import providedBy
 
 import colander
@@ -25,6 +26,14 @@ def filter_query_by_qs(session, cls, qs, existing_query=None):
     You can also do an in query:
 
         /conference?pk.in=1,2
+
+    You can also do a not query by using pk.not=
+
+        /conference?name.not=PyCon2012
+
+    You can also do a not in query by using pk.not=
+
+        /conference?name.notin=PyCon2012,PyCon2011
     """
     if existing_query:
         query = existing_query
@@ -57,9 +66,17 @@ def filter_query_by_qs(session, cls, qs, existing_query=None):
             key = key[0:-3]
             prop = getattr(cls, key)
             query = query.filter(prop.in_(value.split(',')))
+        elif '.notin' in key:
+            key = key[0:-6]
+            prop = getattr(cls, key)
+            query = query.filter(not_(prop.in_(value.split(','))))
+        elif '.not' in key:
+            key = key[0:-4]
+            prop = getattr(cls, key)
+            query = query.filter(prop != value)
         else:
             prop = getattr(cls, key)
-            query = query.filter(prop==value)
+            query = query.filter(prop == value)
 
     return query
 
