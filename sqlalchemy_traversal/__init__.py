@@ -348,14 +348,12 @@ class TraversalMixin(JsonSerializableMixin):
             if self._request.method == 'POST' and \
                     self._request.path.endswith(attribute):
 
-                cls = get_prop_from_cls(self.__class__, attribute,
-                        self._get_class
-                )
+                cls = get_prop_from_cls(self.__class__, attribute)
 
                 cls.__parent__ = self
                 cls._request = self._request
 
-                return cls
+                return cls()
 
         obj = getattr(self, attribute)
 
@@ -366,9 +364,9 @@ class TraversalMixin(JsonSerializableMixin):
             if hasattr(self, '_request'):
                 request = self._request
 
-            if request:
-                session = get_session(request)
-                filter_query_by_qs(session, obj, self._request.GET)
+#            if request:
+                #session = get_session(request)
+                #filter_query_by_qs(session, obj, self._request.GET)
 
             try:
                 ignore_types = (str, unicode, int, float, TraversalMixin)

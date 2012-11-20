@@ -78,25 +78,24 @@ class SQLAlchemyRoot(object):
 
             # This is the final object we want, so lets return the result
             # if its not, lets return the query itself
-            if self.request.path.split('/')[-2] == self.table_lookup:
+#            if self.request.path.split('/')[-2] == self.table_lookup:
 
-                try:
-                    result = filter_query_by_qs(self.session, self.cls,
-                            self.request.GET
-                            , existing_query = result
-                    )
-
-                    result = result.one()
-                except (ProgrammingError, DataError):
-                    raise KeyError
-            else:
-                getitem = QueryGetItem(self.cls, result,
-                    self.request, result.__getitem__
+            try:
+                result = filter_query_by_qs(self.session, self.cls,
+                        self.request.GET
+                        , existing_query = result
                 )
 
-                getitem.__parent__ = self
+                result = result.one()
+            except (ProgrammingError, DataError):
+                raise KeyError
+#                getitem = QueryGetItem(self.cls, result,
+#                    self.request, result.__getitem__
+#                )
+#
+#                getitem.__parent__ = self
 
-                result.__getitem__ =  getitem
+#                result.__getitem__ =  getitem
 
             # we need give the SQLAlchemy model an instance of the request
             # so that it can check if we are in a PUT or POST
@@ -108,7 +107,8 @@ class SQLAlchemyRoot(object):
         except NoResultFound as e:
             # POSTing to the URL with ID already set?
             if self.request.method == 'POST' and self.cls != None:
-                return self.cls()
+                cls = self.cls()
+                cls.__parent__ = self
 
             raise KeyError
 
