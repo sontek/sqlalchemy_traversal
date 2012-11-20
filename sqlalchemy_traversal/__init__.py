@@ -15,6 +15,74 @@ from zope.interface                     import providedBy
 import colander
 import venusian
 
+def filter_list_by_qs(qs, collection):
+    """ This function takes a querystring and a list
+
+    Accepted QS arguments are: __order_by and property names, for example:
+
+        /conference/1/fields?__order_by=sort_order&name=Foo Con
+
+    You can also do an in query:
+
+        /conference?pk.in=1,2
+
+    You can also do a not query by using pk.not=
+
+        /conference?name.not=PyCon2012
+
+    You can also do a not in query by using pk.not=
+
+        /conference?name.notin=PyCon2012,PyCon2011
+    """
+    method = 'asc'
+
+    order_by = None
+
+    if '__order_by' in qs:
+        order_by = qs.pop('__order_by')
+
+    if order_by:
+        orders = [x.strip() for x in order_by.split(',')]
+
+        for order in orders:
+            if ' ' in order:
+                order, method = order.split()
+                if method == 'asc':
+                    collection.sort(key=lambda x: getattr(x, order))
+                else:
+                    collection.sort(key=lambda x: getattr(x, order), reverse=True)
+
+
+    for key, value in qs.iteritems():
+        if '.in' in key:
+            key = key[0:-3]
+            values = value.split(',')
+
+            for obj in collection[:]:
+                if not getattr(obj, key) in values:
+                    collection.remove(obj)
+
+        elif '.notin' in key:
+            key = key[0:-3]
+            values = value.split(',')
+
+            for obj in collection[:]:
+                if getattr(obj, key) in values:
+                    collection.remove(obj)
+
+        elif '.not' in key:
+            key = key[0:-4]
+
+            for obj in collection[:]:
+                if getattr(obj, key) == value:
+                    collection.remove(obj)
+        else:
+            for obj in collection[:]:
+                if not getattr(obj, key) == value:
+                    collection.remove(obj)
+
+    return collection
+
 def filter_query_by_qs(session, cls, qs, existing_query=None):
     """ This function takes a SA Session, a SA ORM class, and a 
     query string that it can filter with.
@@ -373,7 +441,7 @@ class TraversalMixin(JsonSerializableMixin):
                 if not isinstance(obj, ignore_types):
                     # is this is a collection
                     iter(obj)
-                    col = ModelCollection(obj)
+                    col = ModelCollection(filter_list_by_qs(self._request.GET, obj))
                     col.__parent__ = self
 
                     if request:
