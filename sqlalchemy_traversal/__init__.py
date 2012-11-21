@@ -344,7 +344,7 @@ class ModelCollection(TraversalBase):
                 # Does the item in the collection have the lookup_key we
                 # are looking for?
                 if data == compare_value:
-                    obj.__parent__ = self.__parent__
+                    obj.__parent__ = self
                     if hasattr(self, '_request'):
                         obj._request = self._request
 

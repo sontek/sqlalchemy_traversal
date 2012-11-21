@@ -1,10 +1,19 @@
 from pyramid.view                       import view_config
+from sqlalchemy_traversal               import ModelCollection
 from sqlalchemy_traversal               import get_session
 from sqlalchemy_traversal               import TraversalMixin
 from sqlalchemy_traversal.resources     import SQLAlchemyRoot
 from sqlalchemy_traversal.interfaces    import ISaver
 
 from zope.interface                     import providedBy
+
+def get_parent_keys(obj, pks):
+    if hasattr(obj, '__parent__'):
+        if hasattr(obj.__parent__, 'pk'):
+            pks["%s_pk" % obj.__parent__.__tablename__]  = obj.__parent__.pk
+
+        get_parent_keys(obj.__parent__, pks)
+
 
 @view_config(
     route_name='traversal_resources',
@@ -14,7 +23,21 @@ def resources_view(request):
     session = get_session(request)
 
     if request.method == 'GET':
-        return request.context
+        #TODO: Do we really want to be doing this? :P
+        results = request.context.__json__(request)
+        parent_pks = {}
+        get_parent_keys(request.context, parent_pks)
+
+        if isinstance(request.context, ModelCollection):
+            results = []
+            for obj in request.context:
+                json = obj.__json__(request)
+                results.append(dict(json.items() + parent_pks.items()))
+
+            return results
+        else:
+            return dict(results.items() + parent_pks.items())
+
     elif request.method == 'POST' or request.method == 'PUT':
         if isinstance(request.context, SQLAlchemyRoot):
             request.context = request.context.cls()
