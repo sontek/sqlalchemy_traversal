@@ -42,3 +42,35 @@ You can also tell it to load relationships via the _json_eager_load property:
 
     class User(TraversalMixin, Base):
         _json_eager_load = ['permissions']
+
+
+Saving
+==================================
+If you want to be able to create data with your API but the content
+coming back doesn't exactly match your model or you want to run it through
+schema validation first you can use the register save decorator:
+
+    @register_save(MyModel, MySchema):
+    def saving_my_model(request, data):
+        data['my_prop'] = 'NEW DATA'
+        return data
+
+You can also handle data exceptions with exception_handlers:
+
+    def handle_integrity_error(model, exception):
+        return {
+            'errors': {
+                'message': 'That data is not unique'
+            }
+        }
+
+    @register_save(
+        MyModel
+        , MySchema
+        , exception_handlers={
+            IntegrityError: handle_integrity_error
+        }
+    ):
+    def saving_my_model(request, data):
+        data['my_prop'] = 'NEW DATA'
+        return data
