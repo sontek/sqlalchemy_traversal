@@ -463,9 +463,10 @@ class register_save(object):
     If an API is called with a POST or PUT it will first try to run validation
     against the schema before doing anything
     """
-    def __init__(self, cls, schema):
+    def __init__(self, cls, schema, exception_handlers=None):
         self.cls = cls
         self.schema = schema
+        self.exception_handlers = exception_handlers
 
     def register(self, scanner, name, wrapped):
         def save(request):
@@ -495,8 +496,19 @@ class register_save(object):
             for key, value in result.iteritems():
                 setattr(request.context, key, value)
 
-            session.add(request.context)
-            session.flush()
+            try:
+                session.add(request.context)
+                session.flush()
+            except Exception as e:
+                error_dict = {'has_errors': True}
+                if self.exception_handlers:
+                    if e.__class__ in self.exception_handlers:
+                        new_errors = self.exception_handlers[e.__class__](request.context, e)
+
+                        return dict(error_dict.items() + new_errors.items())
+
+                error_dict['message']  = e.message
+                return error_dict
 
             after_save = request.registry.adapters.lookup(
                 [providedBy(request.context)], IAfterSaver
