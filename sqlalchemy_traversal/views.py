@@ -57,6 +57,13 @@ def resources_view(request):
             if 'has_errors' in result:
                 request.response_status = '400 Bad Request'
 
+        if 'serverAttrs' in request.json:
+            to_return = {}
+            for attr in request.json['serverAttrs']:
+                to_return[attr] = getattr(result, attr)
+
+            return to_return
+
         return result
     elif request.method == 'DELETE':
         session.delete(request.context)
