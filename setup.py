@@ -33,6 +33,7 @@ setup(
     , url='http://github.com/eventray/' + name
     , author='John Anderson'
     , author_email='sontek@gmail.com'
+    , license='MIT'
     , packages=find_packages()
     , include_package_data = True
     , install_requires = requires
