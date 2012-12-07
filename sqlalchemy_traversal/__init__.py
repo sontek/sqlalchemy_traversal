@@ -322,8 +322,9 @@ class JsonSerializableMixin(TraversalBase):
         return props
 
 class ModelCollection(TraversalBase):
-    def __init__(self, collection):
+    def __init__(self, collection, request=None):
         self.collection = collection
+        self._request = request
 
     def __getitem__(self, key):
         """

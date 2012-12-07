@@ -182,6 +182,7 @@ class TraversalRoot(object):
                 try:
                     to_return = ModelCollection(
                         [x for x in query.all()]
+                        , request=self.request
                     )
                 except ProgrammingError:
                     raise KeyError
