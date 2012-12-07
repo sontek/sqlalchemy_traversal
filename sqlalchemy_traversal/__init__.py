@@ -9,6 +9,7 @@ from datetime                           import time
 
 from sqlalchemy.orm                     import class_mapper
 from sqlalchemy.exc                     import InvalidRequestError
+from sqlalchemy.orm.properties          import RelationshipProperty
 from sqlalchemy                         import not_
 from zope.interface                     import providedBy
 
@@ -269,7 +270,20 @@ class JsonSerializableMixin(TraversalBase):
 
         # we make a copy because the dict will change if the database
         # is updated / flushed
-        options = self.__dict__.copy()
+    #    options = self.__dict__.copy()
+        properties = list(class_mapper(type(self)).iterate_properties)
+
+        relationships = [
+            p.key for p in properties if type(p) is RelationshipProperty
+        ]
+
+        attrs = []
+        all_properties = {}
+        for p in properties:
+            all_properties[p.key] = p
+
+            if not p.key in relationships:
+                attrs.append(p.key)
 
         # setup the blacklist
         # use set for easy 'in' lookups
@@ -278,13 +292,9 @@ class JsonSerializableMixin(TraversalBase):
         # extend the base blacklist with the json blacklist
         blacklist.update(getattr(self, '_json_blacklist', []))
 
-        for key in options:
+        for key in attrs:
             # skip blacklisted properties
             if key in blacklist:
-                continue
-
-            # do not include private and SQLAlchemy properties
-            if key.startswith(('__', '_sa_')):
                 continue
 
             # format and date/datetime/time properties to isoformat
@@ -297,17 +307,6 @@ class JsonSerializableMixin(TraversalBase):
             # get the class property value
             attr = getattr(self, key)
 
-            # let see if we need to eagerly load it
-            # this is for SQLAlchemy foreign key fields that
-            # indicate with one-to-many relationships
-            if key in json_eager_load and attr:
-                if hasattr(attr, '_sa_instance_state'):
-                    props[key] = self.try_to_json(request, attr)
-                else:
-                    # jsonify all child objects
-                    props[key] = [self.try_to_json(request, x) for x in attr]
-                continue
-
             # convert all non integer strings to string or if string conversion
             # is not possible, convert it to Unicode
             if attr and not isinstance(attr, (int, float)):
@@ -318,6 +317,20 @@ class JsonSerializableMixin(TraversalBase):
                 continue
 
             props[key] = attr
+
+        for key in relationships:
+            # get the class property value
+            attr = getattr(self, key)
+
+            # let see if we need to eagerly load it
+            # this is for SQLAlchemy foreign key fields that
+            # indicate with one-to-many relationships
+            if key in json_eager_load and attr:
+                if all_properties[key].direction.name != "ONETOMANY":
+                    props[key] = self.try_to_json(request, attr)
+                else:
+                    # jsonify all child objects
+                    props[key] = [self.try_to_json(request, x) for x in attr]
 
         return props
 
