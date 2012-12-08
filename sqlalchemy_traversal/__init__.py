@@ -325,12 +325,14 @@ class JsonSerializableMixin(TraversalBase):
             # let see if we need to eagerly load it
             # this is for SQLAlchemy foreign key fields that
             # indicate with one-to-many relationships
+            many_directions = ["ONETOMANY", "MANYTOMANY"]
+
             if key in json_eager_load and attr:
-                if all_properties[key].direction.name != "ONETOMANY":
-                    props[key] = self.try_to_json(request, attr)
-                else:
+                if all_properties[key].direction.name in many_directions:
                     # jsonify all child objects
                     props[key] = [self.try_to_json(request, x) for x in attr]
+                else:
+                    props[key] = self.try_to_json(request, attr)
 
         return props
 
