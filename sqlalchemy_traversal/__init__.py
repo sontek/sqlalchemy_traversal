@@ -307,13 +307,13 @@ class JsonSerializableMixin(TraversalBase):
             # get the class property value
             attr = getattr(self, key)
 
-            # convert all non integer strings to string or if string conversion
-            # is not possible, convert it to Unicode
+            # convert all non integer strings to unicode or if unicode conversion
+            # is not possible, convert it to a byte string.
             if attr and not isinstance(attr, (int, float)):
                 try:
-                    props[key] = str(attr)
-                except UnicodeEncodeError:
-                    props[key] = unicode(attr)  # .encode('utf-8')
+                    props[key] = unicode(attr)
+                except UnicodeDecodeError:
+                    props[key] = str(attr)  # .encode('utf-8')
                 continue
 
             props[key] = attr
