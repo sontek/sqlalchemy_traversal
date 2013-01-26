@@ -88,7 +88,13 @@ def parse_key(key):
             command = filter_match.group('command')
             args = filter_match.group('args')
 
-            if command in ["equals", 'not_equals']:
+            if command in [
+                    "equals"
+                    , 'not_equals'
+                    , 'starts_with'
+                    , 'ends_with'
+                    ,"contains"
+            ]:
                 # should be like equals(value)
                 # should be like not_equals(value)
                 result['column_filters'].append((column, command, args))
@@ -101,6 +107,25 @@ def parse_key(key):
     return result
 
 def filter_query(filters, query, cls):
+    if filters['column_filters']:
+        for column, command, args in filters['column_filters']:
+            prop = getattr(cls, column)
+
+            if command == 'equals':
+                query = query.filter(prop == args)
+            elif command == 'not_equals':
+                query = query.filter(prop != args)
+            elif command == 'starts_with':
+                query = query.filter(prop.like(args +"%"))
+            elif command == 'ends_with':
+                query = query.filter(prop.like("%" + args))
+            elif command == 'contains':
+                query = query.filter(prop.like("%" + args + "%"))
+            elif command == 'in':
+                query = query.filter(prop.in_(args))
+            elif command == 'not_in':
+                query = query.filter(not_(prop.in_(args)))
+
     for key, value in filters.iteritems():
         if key == 'limit':
             query = query.limit(value[1])
@@ -113,19 +138,6 @@ def filter_query(filters, query, cls):
                     query = query.order_by(prop.desc())
                 else:
                     query = query.order_by(prop.asc())
-        elif key == 'column_filters':
-            for column, command, args in value:
-                prop = getattr(cls, column)
-
-                if command == 'equals':
-                    query = query.filter(prop == args)
-                elif command == 'not_equals':
-                    query = query.filter(prop != args)
-                elif command == 'in':
-                    query = query.filter(prop.in_(args))
-                elif command == 'not_in':
-                    query = query.filter(not_(prop.in_(args)))
-
     return query
 
 
@@ -135,6 +147,12 @@ def filter_list(filters, list_):
             list_ = filter(lambda x: getattr(x, column) == args, list_)
         elif command == 'not_equals':
             list_ = filter(lambda x: getattr(x, column) != args, list_)
+        elif command == 'starts_with':
+            list_ = filter(lambda x: getattr(x, column).startswith(args), list_)
+        elif command == 'ends_with':
+            list_ = filter(lambda x: getattr(x, column).endswith(args), list_)
+        elif command == 'contains':
+            list_ = filter(lambda x: args in getattr(x, column), list_)
         elif command == 'in':
             list_ = filter(lambda x: getattr(x, column) in args, list_)
         elif command == 'not_in':
