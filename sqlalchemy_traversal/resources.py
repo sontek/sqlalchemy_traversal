@@ -4,10 +4,14 @@ from sqlalchemy_traversal import TraversalMixin
 from sqlalchemy_traversal import ModelCollection
 from sqlalchemy_traversal import filter_query_by_qs
 from sqlalchemy_traversal import get_prop_from_cls
+from sqlalchemy_traversal import parse_key
+from sqlalchemy_traversal import filter_query
 from sqlalchemy.orm       import contains_eager
 from sqlalchemy.orm.exc   import NoResultFound
 from sqlalchemy.exc       import ProgrammingError
 from sqlalchemy.exc       import DataError
+
+import urllib
 
 class QueryGetItem(object):
     """
@@ -162,7 +166,9 @@ class TraversalRoot(object):
         root a SQLAlchemyFactory that will keep track of which node we are 
         currently at.
         """
-        cls = self.tables[key]
+        filters = parse_key(key)
+
+        cls = self.tables[filters['table']]
 
         to_return = None
 
@@ -173,11 +179,15 @@ class TraversalRoot(object):
         # This is used to shortcircuit the traversal, if we are ending
         # on a model, for instance /api/user then we should either be creating
         # a new instance or querying the table
-        if self.request.path.endswith(key):
+        path = urllib.unquote(self.request.path)
+
+        if path.endswith(key):
             if self.request.method == 'GET':
-                query = filter_query_by_qs(self.session, cls,
-                        self.request.GET
-                )
+                #query = filter_query_by_qs(self.session, cls,
+                #        self.request.GET
+                #)
+                query = self.session.query(cls)
+                query = filter_query(filters, query, cls)
 
                 try:
                     to_return = ModelCollection(

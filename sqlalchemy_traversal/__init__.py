@@ -15,6 +15,142 @@ from zope.interface                     import providedBy
 
 import colander
 import venusian
+import re
+import urllib
+
+def get_order_by(order_string):
+    final_orders = []
+    orders = [x.strip() for x in order_string.split(',')]
+
+    for order in orders:
+        if ' ' in order:
+            order, method = order.split()
+            if not method:
+                method = 'desc'
+            final_orders.append((order, method))
+
+    return final_orders
+
+def parse_key(key):
+    """ This will return a set of query rules based on the
+    key.
+
+
+    The structure of this is:
+    /column{column1.equals(foo).limit(0, 12).order_by(foo,bar)
+
+    for example:
+    /messages{id.not_equals(2), topic.equals(bar)}.order_by(name).limit(0, 10)
+    """
+
+    # first value will be our column
+    # rest will be values for rules on the query
+    if key.startswith("/"):
+        key = key[1:]
+
+    key_regex = re.compile("^(?P<name>\w+)(?P<columns>\{.+?\})?.?(?P<limit>limit\(.+?\))?.?(?P<order_by>order_by\(.+?\))?$")
+    match = re.match(key_regex, key)
+
+    name = match.group('name')
+    limit = match.group('limit')
+    order_by = match.group('order_by')
+    columns = match.group('columns')
+
+    result = {'table': name, 'column_filters': []}
+
+    if order_by:
+        order_regex = re.compile("^(\w+)\((.+?)\)$")
+        match = re.match(order_regex, order_by)
+        result['orders'] = []
+        orders = get_order_by(match.group(2))
+
+        for order, method in orders:
+            result['order_by'].append((order, method))
+
+    if limit:
+        limit_regex = re.compile("^(\w+)\((\d+),(\d+)\)$")
+        match = re.match(limit_regex, limit)
+        start = int(match.group(2))
+        end = int(match.group(3))
+        result['limit'] = (start, end)
+
+
+    if columns:
+        column_regex = re.compile("\w+\.\w+\(.+?\)")
+
+        results = re.findall(column_regex, columns)
+
+        for match in results:
+            filter_regex = re.compile("^(?P<column>\w+)\.(?P<command>\w+)\((?P<args>.+?)\)")
+            filter_match = re.match(filter_regex, match)
+
+            column = filter_match.group('column')
+            command = filter_match.group('command')
+            args = filter_match.group('args')
+
+            if command in ["equals", 'not_equals']:
+                # should be like equals(value)
+                # should be like not_equals(value)
+                result['column_filters'].append((column, command, args))
+            elif command in ["in", "not_in"]:
+                # should be like in(1,2,3)
+                # should be like not_in(1,2,3)
+                final_args = [x.strip() for x in args.split(',')]
+                result['column_filters'].append((column, command, final_args))
+
+    return result
+
+def filter_query(filters, query, cls):
+    for key, value in filters.iteritems():
+        if key == 'limit':
+            query = query.limit(value[1])
+            query = query.offset(value[0])
+        elif key == 'order_by':
+            for order, method in value:
+                prop = getattr(cls, order)
+
+                if method == 'desc':
+                    query = query.order_by(prop.desc())
+                else:
+                    query = query.order_by(prop.asc())
+        elif key == 'column_filters':
+            for column, command, args in value:
+                prop = getattr(cls, column)
+
+                if command == 'equals':
+                    query = query.filter(prop == args)
+                elif command == 'not_equals':
+                    query = query.filter(prop != args)
+                elif command == 'in':
+                    query = query.filter(prop.in_(args))
+                elif command == 'not_in':
+                    query = query.filter(not_(prop.in_(args)))
+
+    return query
+
+
+def filter_list(filters, list_):
+    for column, command, args in filters['column_filters']:
+        if command == 'equals':
+            list_ = filter(lambda x: getattr(x, column) == args, list_)
+        elif command == 'not_equals':
+            list_ = filter(lambda x: getattr(x, column) != args, list_)
+        elif command == 'in':
+            list_ = filter(lambda x: getattr(x, column) in args, list_)
+        elif command == 'not_in':
+            list_ = filter(lambda x: getattr(x, column) not in args, list_)
+
+    for key, value in filters.iteritems():
+        if key == 'limit':
+            list_ = list_[value[0]:value[1]]
+        elif key == 'order_by':
+            for order, method in value:
+                if method == 'asc':
+                    list_.sort(key=lambda x: getattr(x, order))
+                else:
+                    list_.sort(key=lambda x: getattr(x, order), reverse=True)
+
+    return list_
 
 def filter_list_by_qs(qs, collection):
     """ This function takes a querystring and a list
@@ -425,21 +561,26 @@ class TraversalMixin(JsonSerializableMixin):
         """
         obj = None
 
+        filters = parse_key(attribute)
+
+        table_name = filters['table']
+
         # _request comes from our traversal code
         if hasattr(self, '_request'):
             #TODO: Lets make this less of a hack
             # POST means "create", so we are always looking for a class
-            if self._request.method == 'POST' and \
-                    self._request.path.endswith(attribute):
+            path = urllib.unquote(self._request.path)
 
-                cls = get_prop_from_cls(self.__class__, attribute)
+            if self._request.method == 'POST' and path.endswith(attribute):
+
+                cls = get_prop_from_cls(self.__class__, table_name)
 
                 cls.__parent__ = self
                 cls._request = self._request
 
                 return cls()
 
-        obj = getattr(self, attribute)
+        obj = getattr(self, table_name)
 
         # The model had the specific attribute, so we just need to figure out
         # if we are returning a collection or a single instance
@@ -457,7 +598,7 @@ class TraversalMixin(JsonSerializableMixin):
                 if not isinstance(obj, ignore_types):
                     # is this is a collection
                     iter(obj)
-                    col = ModelCollection(filter_list_by_qs(self._request.GET, obj))
+                    col = ModelCollection(filter_list(filters, obj))
                     col.__parent__ = self
 
                     if request:
