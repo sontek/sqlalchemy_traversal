@@ -11,6 +11,7 @@ from sqlalchemy.orm                     import class_mapper
 from sqlalchemy.exc                     import InvalidRequestError
 from sqlalchemy.orm.properties          import RelationshipProperty
 from sqlalchemy                         import not_
+from sqlalchemy                         import Integer
 from zope.interface                     import providedBy
 
 import colander
@@ -141,8 +142,20 @@ def filter_query(filters, query, cls):
     return query
 
 
-def filter_list(filters, list_):
+def filter_list(filters, list_, cls):
     for column, command, args in filters['column_filters']:
+        properties = list(class_mapper(cls).iterate_properties)
+
+        type_cleaner = None
+        # figure out if we should cast the passed it variable
+        for prop in properties:
+            if prop.key == column:
+                if isinstance(prop.columns[0].type, Integer):
+                    type_cleaner = int
+
+        if type_cleaner:
+            args = type_cleaner(args)
+
         if command == 'equals':
             list_ = filter(lambda x: getattr(x, column) == args, list_)
         elif command == 'not_equals':
@@ -616,7 +629,16 @@ class TraversalMixin(JsonSerializableMixin):
                 if not isinstance(obj, ignore_types):
                     # is this is a collection
                     iter(obj)
-                    col = ModelCollection(filter_list(filters, obj))
+
+                    properties = list(class_mapper(type(self)).iterate_properties)
+
+                    rel_cls = None
+
+                    for prop in properties:
+                        if prop.key == table_name:
+                            rel_cls = prop.mapper.class_
+
+                    col = ModelCollection(filter_list(filters, obj, rel_cls))
                     col.__parent__ = self
 
                     if request:
