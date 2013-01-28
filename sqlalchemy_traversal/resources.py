@@ -142,7 +142,7 @@ class TraversalRoot(object):
         # Loop through all the tables in the SQLAlchemy registry
         # and store them if they subclass the TraversalMixin
         for key, table in self.base._decl_class_registry.iteritems():
-            if issubclass(table, TraversalMixin):
+            if isinstance(table, type) and issubclass(table, TraversalMixin):
                 table.__parent__ = self
                 self.tables[table.__tablename__] = table
 
