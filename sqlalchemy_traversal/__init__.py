@@ -444,6 +444,8 @@ class JsonSerializableMixin(TraversalBase):
             p.key for p in properties if type(p) is RelationshipProperty
         ]
 
+        # attrs is the attributes that we serialize to json
+        # we store them separately since we have a blacklist
         attrs = []
         all_properties = {}
         for p in properties:
@@ -486,20 +488,21 @@ class JsonSerializableMixin(TraversalBase):
             props[key] = attr
 
         for key in relationships:
-            # get the class property value
-            attr = getattr(self, key)
-
             # let see if we need to eagerly load it
             # this is for SQLAlchemy foreign key fields that
             # indicate with one-to-many relationships
             many_directions = ["ONETOMANY", "MANYTOMANY"]
 
-            if key in json_eager_load and attr:
-                if all_properties[key].direction.name in many_directions:
-                    # jsonify all child objects
-                    props[key] = [self.try_to_json(request, x) for x in attr]
-                else:
-                    props[key] = self.try_to_json(request, attr)
+            if key in json_eager_load:
+                # get the class property value
+                attr = getattr(self, key)
+
+                if attr:
+                    if all_properties[key].direction.name in many_directions:
+                        # jsonify all child objects
+                        props[key] = [self.try_to_json(request, x) for x in attr]
+                    else:
+                        props[key] = self.try_to_json(request, attr)
 
         return props
 
